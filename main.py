@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import json
+import time
 
 import wx
 import pcbnew
@@ -19,9 +20,9 @@ logger = logging.getLogger()
 
 
 def download_part(lcsc_id, dir):
+    logger.info(f"Downloading to: {dir}")
     os.makedirs(os.path.dirname(dir), exist_ok=True)
     easyeda2kicad.main(["--full", f"--lcsc_id={lcsc_id}", "--output", dir, "--overwrite"])
-
 
 class Plugin(pcbnew.ActionPlugin):
     def defaults(self):
@@ -54,18 +55,18 @@ class Dialog(wx.Dialog):
 
         board = pcbnew.GetBoard()
 
-        download_dir = f"{os.path.dirname(board.GetFileName())}/libs/easyeda/easyeda"
-
         settings = pcbnew.SETTINGS_MANAGER.GetUserSettingsPath()
 
         with open(settings+'/kicad_common.json', 'r') as f:
             data = json.load(f)
             if not (data["environment"]["vars"] is None) and "EASYEDA_CUSTOM_DIR" in data["environment"]["vars"]:
-                download_dir = data["environment"]["vars"]["EASYEDA_CUSTOM_DIR"]
+                download_dir = data["environment"]["vars"]["EASYEDA_CUSTOM_DIR"] + "/easyeda"
+            else:
+                download_dir = f"{os.path.dirname(board.GetFileName())}/libs/easyeda/easyeda"
 
         content = wx.BoxSizer(wx.VERTICAL)
 
-        grid = wx.GridSizer(2, 2, 5, 5)
+        grid = wx.FlexGridSizer(2, 5, 5)
 
         text_lcsc_id_title = wx.StaticText(self, wx.ID_ANY, "LCSC ID:")
         grid.Add(text_lcsc_id_title, 0, wx.EXPAND | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
@@ -74,10 +75,20 @@ class Dialog(wx.Dialog):
         text_edit_lcsc_id.SetHint("e.g. C2040")
         grid.Add(text_edit_lcsc_id, 0, wx.EXPAND)
 
+        text_lcsc_path_title = wx.StaticText(self, wx.ID_ANY, "Download path:")
+        grid.Add(text_lcsc_path_title, 0, wx.EXPAND | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
+
+        text_edit_lcsc_download_path = wx.TextCtrl(self, wx.ID_ANY, download_dir, wx.DefaultPosition, wx.DefaultSize, wx.TE_PROCESS_ENTER)
+        grid.Add(text_edit_lcsc_download_path, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, wx.ID_ANY, ""), 0, wx.EXPAND | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
+
         download_button = wx.Button(self, wx.ID_ANY, "Download")
         download_button.Bind(wx.EVT_BUTTON,
-                             lambda event: self._on_download_click(text_edit_lcsc_id.GetValue(), download_dir))
+                             lambda event: self._on_download_click(text_edit_lcsc_id.GetValue(), text_edit_lcsc_download_path.GetValue()))
         grid.Add(download_button, 0, wx.EXPAND)
+
+        grid.Add(wx.StaticText(self, wx.ID_ANY, ""), 0, wx.EXPAND | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL)
 
         done_button = wx.Button(self, wx.ID_OK, "Done")
         grid.Add(done_button, 0, wx.EXPAND)
@@ -94,6 +105,8 @@ class Dialog(wx.Dialog):
         self.Layout()
         self.Centre(wx.BOTH)
 
+        download_dir = text_edit_lcsc_download_path.GetValue()
+
         logger.info(f"Download folder: {download_dir}")
 
         if not easyeda2kicad:
@@ -101,7 +114,6 @@ class Dialog(wx.Dialog):
 
     def _on_download_click(self, lcsc_id, download_dir):
         download_part(lcsc_id, download_dir)
-
 
 class TextCtrlHandler(logging.Handler):
     def __init__(self, ctrl):
