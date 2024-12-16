@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import json
 
 import wx
 import pcbnew
@@ -52,7 +53,15 @@ class Dialog(wx.Dialog):
         )
 
         board = pcbnew.GetBoard()
+
         download_dir = f"{os.path.dirname(board.GetFileName())}/libs/easyeda/easyeda"
+
+        settings = pcbnew.SETTINGS_MANAGER.GetUserSettingsPath()
+
+        with open(settings+'/kicad_common.json', 'r') as f:
+            data = json.load(f)
+            if not (data["environment"]["vars"] is None) and "EASYEDA_CUSTOM_DIR" in data["environment"]["vars"]:
+                download_dir = data["environment"]["vars"]["EASYEDA_CUSTOM_DIR"]
 
         content = wx.BoxSizer(wx.VERTICAL)
 
